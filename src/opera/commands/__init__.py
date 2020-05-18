@@ -1,4 +1,5 @@
 from opera.commands import (
+    package,
     validate,
     init,
     info,
