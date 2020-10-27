@@ -87,14 +87,16 @@ topology_template:
           properties:
             capability_property: capability_property_value
       requirements:
-        - host: my-workstation1
+        - host:
+            node: my-workstation2
+            relationship: test_rel
       artifacts:
         artifact:
           type: daily_test.artifacts.test
           file: modules/node_types/test/file.test
 
   relationship_templates:
-    test:
+    test_rel:
       type: daily_test.relationships.test
       properties:
         relationship_property: test123
@@ -112,10 +114,16 @@ topology_template:
       targets: [ hello, setter, workstation_group ]
 
   outputs:
-    output_prop:
+    node_output_prop:
       description: Example of property output
       value: { get_property: [ setter, my_property ] }
-    output_attr:
+    node_output_attr:
       description: Example of attribute output
       value: { get_attribute: [ setter, my_attribute ] }
+    relationship_output_prop:
+      description: Example of attribute output
+      value: { get_property: [ test_rel, relationship_property ] }
+    relationship_output_attr:
+      description: Example of attribute output
+      value: { get_attribute: [ test_rel, relationship_attribute ] }
 ...

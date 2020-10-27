@@ -21,7 +21,8 @@ class Relationship:
 
     def instantiate(self, source, target):
         relationship_id = "{}--{}".format(source.tosca_id, target.tosca_id)
-        return Instance(self, relationship_id, source, target)
+        self.instances = {relationship_id: Instance(self, relationship_id, source, target)}
+        return self.instances.values()
 
     def run_operation(self, host, interface, operation, instance, verbose,
                       workdir):
@@ -47,7 +48,22 @@ class Relationship:
         # have data type support.
         if prop not in self.properties:
             raise DataError("Template has no '{}' property".format(prop))
+
         return self.properties[prop].eval(self, prop)
+
+    def get_attribute(self, params):
+        host, attr, *rest = params
+
+        if host != "SELF":
+            raise DataError(
+                "Accessing non-local stuff is bad. Fix your service template."
+            )
+        if host == "HOST":
+            raise DataError("HOST is not yet supported in opera.")
+        if len(self.instances) != 1:
+            raise DataError("Cannot get an attribute from multiple instances")
+
+        return next(iter(self.instances.values())).get_attribute(params)
 
     def get_input(self, params):
         return self.topology.get_input(params)
