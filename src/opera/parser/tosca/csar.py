@@ -1,18 +1,91 @@
+import shutil
+import yaml
+
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from zipfile import ZipFile
 
-import yaml
 from opera.error import ParseError
 
 
 class CloudServiceArchive:
-    def __init__(self, csar_name, csar_folder_path):
+    def __init__(self, csar_name, csar_folder_path=None):
         self._csar_name = csar_name
         self._csar_folder_path = csar_folder_path
         self._tosca_meta = None
         self._root_yaml_template = None
         self._metadata = None
+
+    def package_csar(self, output, service_template=None, csar_format="zip"):
+        try:
+            root_yaml_files = []
+            root_yaml_files.extend(Path(self._csar_name).glob('*.yaml'))
+            root_yaml_files.extend(Path(self._csar_name).glob('*.yml'))
+
+            if len(root_yaml_files) != 1:
+                raise ParseError("There should be one root level yaml "
+                                 "file in the root of the CSAR: {}."
+                                 .format(list(map(str, root_yaml_files))),
+                                 self)
+
+            if not service_template:
+                service_template = root_yaml_files[0].name
+            else:
+                if not Path(self._csar_name).joinpath(
+                        service_template).exists():
+                    raise ParseError('The supplied TOSCA service template '
+                                     'file "{}" does not exist in folder '
+                                     '"{}".'.format(service_template,
+                                                    self._csar_name), self)
+
+            meta_file_path = Path(
+                self._csar_name) / "TOSCA-Metadata" / "TOSCA.meta"
+            if meta_file_path.exists():
+                # check existing TOSCA.meta file
+                with meta_file_path.open() as meta_file:
+                    self._tosca_meta = yaml.safe_load(meta_file)
+
+                self._validate_csar_version()
+                self._validate_tosca_meta_file_version()
+                template_entry = self._get_entry_definitions()
+                self._get_created_by()
+                self._get_other_definitions()
+
+                # check if 'Entry-Definitions' points to an existing
+                # template file in the CSAR
+                if not Path(self._csar_name).joinpath(template_entry).exists():
+                    raise ParseError('The file "{}" defined within '
+                                     '"Entry-Definitions" in '
+                                     '"TOSCA-Metadata/TOSCA.meta" does '
+                                     'not exist.'.format(template_entry), self)
+                return shutil.make_archive(output, csar_format,
+                                           self._csar_name)
+            else:
+                # use tempdir because we don't want to modify user's folder
+                with TemporaryDirectory(prefix="opera-package-") as tempdir:
+                    # copy all the needed CSAR files to tempdir
+                    shutil.copytree(self._csar_name, tempdir,
+                                    dirs_exist_ok=True)
+
+                    # create TOSCA-Metadata/TOSCA.meta file using the specified
+                    # TOSCA service template or directory root YAML file
+                    content = ("TOSCA-Meta-File-Version: 1.1\n"
+                               "CSAR-Version: 1.1\n"
+                               "Created-By: xOpera TOSCA orchestrator\n"
+                               "Entry-Definitions: {}".
+                               format(service_template))
+
+                    meta_file_folder = Path(tempdir) / "TOSCA-Metadata"
+                    meta_file = (meta_file_folder / "TOSCA.meta")
+
+                    meta_file_folder.mkdir()
+                    meta_file.touch()
+                    meta_file.write_text(content)
+
+                    return shutil.make_archive(output, csar_format, tempdir)
+        except Exception as e:
+            raise ParseError("Error when creating CSAR: {}".format(e),
+                             self)
 
     def validate_csar(self):
         with TemporaryDirectory(dir=self._csar_folder_path) as tempdir:
@@ -34,10 +107,11 @@ class CloudServiceArchive:
                     # check if 'Entry-Definitions' points to an existing
                     # template file in the CSAR
                     if not Path(tempdir).joinpath(template_entry).exists():
-                        raise ParseError(
-                            'The file "{}" defined within "Entry-Definitions" '
-                            'in "TOSCA-Metadata/TOSCA.meta" does not exist.'
-                            .format(template_entry), self)
+                        raise ParseError('The file "{}" defined within '
+                                         '"Entry-Definitions" in '
+                                         '"TOSCA-Metadata/TOSCA.meta" does '
+                                         'not exist.'.format(template_entry),
+                                         self)
 
                     return template_entry
                 else:
@@ -67,8 +141,8 @@ class CloudServiceArchive:
         csar_version = self._tosca_meta.get('CSAR-Version')
         if csar_version and csar_version != 1.1:
             raise ParseError('CSAR-Version entry in the CSAR {} is '
-                             'required to denote version 1.1".'.format(
-                                self._csar_name), self)
+                             'required to denote version 1.1".'.
+                             format(self._csar_name), self)
         return csar_version
 
     def _validate_tosca_meta_file_version(self):
