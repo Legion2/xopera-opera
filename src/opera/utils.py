@@ -1,10 +1,11 @@
+import yaml
+import json
 
 
 def prompt_yes_no_question(yes_responses=("y", "yes"),
                            no_responses=("n", "no"),
                            case_sensitive=False,
                            default_yes_response=True):
-
     prompt_message = "Do you want to continue? (Y/n): "
     if not default_yes_response:
         prompt_message = "Do you want to continue? (y/N): "
@@ -28,3 +29,12 @@ def prompt_yes_no_question(yes_responses=("y", "yes"),
         print("Exception occurred: {}. Please enter valid inputs.".format(e))
         return prompt_yes_no_question(yes_responses, no_responses,
                                       case_sensitive, default_yes_response)
+
+
+def format_inputs(inputs, inputs_format):
+    if inputs_format == "json":
+        return json.load(inputs)
+    if inputs_format == "yaml":
+        return yaml.safe_load(inputs)
+
+    assert False, "BUG - invalid format"

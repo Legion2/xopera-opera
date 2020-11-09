@@ -2,8 +2,7 @@ import argparse
 import typing
 from pathlib import Path, PurePath
 
-import yaml
-
+from opera.utils import format_inputs
 from opera.error import ParseError, DataError
 from opera.parser import tosca
 
@@ -15,7 +14,11 @@ def add_parser(subparsers):
     )
     parser.add_argument(
         "--inputs", "-i", type=argparse.FileType("r"),
-        help="YAML file with inputs",
+        help="YAML or JSON file with inputs",
+    )
+    parser.add_argument(
+        "--inputs-format", choices=("yaml", "json"),
+        default="yaml", help="Inputs format",
     )
     parser.add_argument(
         "--verbose", "-v", action='store_true',
@@ -31,7 +34,8 @@ def _parser_callback(args):
     print("Validating service template ...")
 
     try:
-        inputs = yaml.safe_load(args.inputs) if args.inputs else {}
+        inputs = format_inputs(args.inputs,
+                               args.inputs_format) if args.inputs else None
     except Exception as e:
         print("Invalid inputs: {}".format(e))
         return 1

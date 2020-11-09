@@ -3,9 +3,7 @@ import typing
 from os import chdir, path
 from pathlib import Path, PurePath
 
-import yaml
-
-from opera.utils import prompt_yes_no_question
+from opera.utils import prompt_yes_no_question, format_inputs
 from opera.error import DataError, ParseError
 from opera.parser import tosca
 from opera.storage import Storage
@@ -22,8 +20,12 @@ def add_parser(subparsers):
     )
     parser.add_argument(
         "--inputs", "-i", type=argparse.FileType("r"),
-        help="Optional: YAML file with inputs to "
+        help="YAML or JSON file with inputs to "
              "override the inputs supplied in init",
+    )
+    parser.add_argument(
+        "--inputs-format", choices=("yaml", "json"),
+        default="yaml", help="Inputs format",
     )
     parser.add_argument(
         "--workers", "-w",
@@ -104,17 +106,15 @@ def _parser_callback(args):
             return 1
 
     try:
-        if args.inputs:
-            inputs = yaml.safe_load(args.inputs)
-        else:
-            inputs = None
+        inputs = format_inputs(args.inputs,
+                               args.inputs_format) if args.inputs else None
     except Exception as e:
         print("Invalid inputs: {}".format(e))
         return 1
 
     try:
-        deploy(service_template, inputs, storage, args.verbose, args.workers,
-               delete_existing_state)
+        deploy(service_template, inputs, args.inputs_format, storage,
+               args.verbose, args.workers, delete_existing_state)
     except ParseError as e:
         print("{}: {}".format(e.loc, e))
         return 1
@@ -126,8 +126,8 @@ def _parser_callback(args):
 
 
 def deploy(service_template: str, inputs: typing.Optional[dict],
-           storage: Storage, verbose_mode: bool, num_workers: int,
-           delete_existing_state: bool):
+           inputs_format: str, storage: Storage,
+           verbose_mode: bool, num_workers: int, delete_existing_state: bool):
     """
     :raises ParseError:
     :raises DataError:
@@ -137,7 +137,7 @@ def deploy(service_template: str, inputs: typing.Optional[dict],
 
     if inputs is None:
         if storage.exists("inputs"):
-            inputs = yaml.safe_load(storage.read("inputs"))
+            inputs = format_inputs(storage.read("inputs"), inputs_format)
         else:
             inputs = {}
     storage.write_json(inputs, "inputs")

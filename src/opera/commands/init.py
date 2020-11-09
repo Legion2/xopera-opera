@@ -4,8 +4,7 @@ from os import path
 from pathlib import Path, PurePath
 from zipfile import ZipFile, is_zipfile
 
-import yaml
-
+from opera.utils import format_inputs
 from opera.error import DataError, ParseError
 from opera.parser import tosca
 from opera.parser.tosca.csar import CloudServiceArchive
@@ -27,6 +26,10 @@ def add_parser(subparsers):
         help="YAML file with inputs",
     )
     parser.add_argument(
+        "--inputs-format", choices=("yaml", "json"),
+        default="yaml", help="Inputs format",
+    )
+    parser.add_argument(
         "--verbose", "-v", action='store_true',
         help="Turns on verbose mode",
     )
@@ -42,9 +45,9 @@ def _parser_callback(args):
                                          .format(args.instance_path))
 
     storage = Storage.create(args.instance_path)
-
     try:
-        inputs = yaml.safe_load(args.inputs) if args.inputs else {}
+        inputs = format_inputs(args.inputs,
+                               args.inputs_format) if args.inputs else None
     except Exception as e:
         print("Invalid inputs: {}".format(e))
         return 1
